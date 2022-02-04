@@ -1,0 +1,35 @@
+using JuMP
+using SCIP
+
+PIECE_PRICE = 2.5
+NUMBER_OF_CLIENTS = 5
+NUMBER_OF_FACTORIES = 3
+PIECES_PER_CLIENT = [2700 2700 9000 4500 3600]
+FACTORY_CAPACITY = [4500 9000 11250]
+PIECE_COST_BY_FACTORY = [2.0 1.0 1.8]
+DELIVERY_COST_BY_FACTORY_PER_CLIENT = [
+    0.05 0.07 0.11 0.15 0.16;
+    0.08 0.06 0.10 0.12 0.15;
+    0.10 0.09 0.09 0.10 0.16
+]
+
+model = Model(SCIP.Optimizer)
+
+@variable(model, PRODUCED_PIECES[1:NUMBER_OF_FACTORIES] >= 0)
+@variable(model, DELIVERED_PIECES[1:NUMBER_OF_FACTORIES, 1:NUMBER_OF_CLIENTS] >= 0)
+
+@objective(model, Max, sum([(PIECE_PRICE - PIECE_COST_BY_FACTORY[f]) * PRODUCED_PIECES[f] for f in 1:NUMBER_OF_FACTORIES]) 
+- sum([
+    sum([DELIVERY_COST_BY_FACTORY_PER_CLIENT[f, c] * DELIVERED_PIECES[f, c] for c in 1:NUMBER_OF_CLIENTS]) for f in 1:NUMBER_OF_FACTORIES
+    ]))
+
+[@constraint(model, sum([DELIVERED_PIECES[f, c] for c in 1:NUMBER_OF_CLIENTS]) <= FACTORY_CAPACITY[f]) for f in 1:NUMBER_OF_FACTORIES]
+
+[@constraint(model, sum([DELIVERED_PIECES[f, c] for f in 1:NUMBER_OF_FACTORIES]) == PIECES_PER_CLIENT[c]) for c in 1:NUMBER_OF_CLIENTS]
+
+[@constraint(model, sum([DELIVERED_PIECES[f, c] for c in 1:NUMBER_OF_CLIENTS]) == PRODUCED_PIECES[f]) for f in 1:NUMBER_OF_FACTORIES]
+
+# Find solution
+optimize!(model)
+@show objective_value(model)
+@show value.(PRODUCED_PIECES) value.(DELIVERED_PIECES)
